@@ -1,16 +1,14 @@
-#include "mainwindow.h"
-
 #include <QApplication>
-using namespace Qt::Literals::StringLiterals;
+#include "mainwindow.h"
 
 int main(int argc, char *argv[])
 {
-    QApplication a(argc, argv);
-    QCoreApplication::setOrganizationName("MetRocketryControlSystems"_L1);
-    QCoreApplication::setApplicationName("Control Systems Groundstation"_L1);
-    QCoreApplication::setApplicationVersion("1.0"_L1);
+    QApplication app(argc, argv);
+    QCoreApplication::setOrganizationName(QStringLiteral("MetRocketryControlSystems"));
+    QCoreApplication::setApplicationName(QStringLiteral("Control Systems Groundstation"));
+    QCoreApplication::setApplicationVersion(QStringLiteral("1.0"));
 
-    MainWindow w;
-    w.show();
-    return QCoreApplication::exec();
+    MainWindow window;
+    window.show();
+    return app.exec();
 }

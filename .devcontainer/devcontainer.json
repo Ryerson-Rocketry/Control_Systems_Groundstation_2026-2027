@@ -1,15 +1,27 @@
 {
 	"name": "Groundstation",
 	"image": "vookimedlo/debian-qt:qt6_latestdistroofficial_gcc_trixie",
-	"postCreateCommand": "apt-get update && apt-get install -y cmake ninja-build qt6-serialport-dev qt6-charts-dev",
+	"features": {
+		"ghcr.io/devcontainers/features/desktop-lite:1": {}
+	},
+	"postCreateCommand": "apt-get update && apt-get install -y cmake ninja-build qt6-serialport-dev qt6-charts-dev libxcb-cursor0",
+	"containerEnv": {
+		"LANG": "C.UTF-8"
+	},
+	"forwardPorts": [
+		6080
+	],
 	"customizations": {
 		"vscode": {
 			"extensions": [
 				"ms-vscode.cmake-tools",
-				"ms-vscode.cpptools"
+				"ms-vscode.cpptools",
+				"theqtcompany.qt",
+				"ms-vscode.vscode-serial-monitor"
 			],
 			"settings": {
-				"cmake.cmakePath": "cmake"
+				"cmake.cmakePath": "cmake",
+				"cmake.generator": "Ninja"
 			}
 		}
 	}
