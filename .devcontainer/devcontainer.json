@@ -1,0 +1,16 @@
+{
+	"name": "Groundstation",
+	"image": "vookimedlo/debian-qt:qt6_latestdistroofficial_gcc_trixie",
+	"postCreateCommand": "apt-get update && apt-get install -y cmake ninja-build qt6-serialport-dev qt6-charts-dev",
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-vscode.cmake-tools",
+				"ms-vscode.cpptools"
+			],
+			"settings": {
+				"cmake.cmakePath": "cmake"
+			}
+		}
+	}
+}
