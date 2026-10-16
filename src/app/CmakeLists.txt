@@ -1,8 +1,0 @@
-qt_add_executable(Groundstation main.cpp)
-
-target_link_libraries(Groundstation PRIVATE gs_ui)
-
-set_target_properties(Groundstation PROPERTIES
-    WIN32_EXECUTABLE TRUE
-    MACOSX_BUNDLE TRUE
-)

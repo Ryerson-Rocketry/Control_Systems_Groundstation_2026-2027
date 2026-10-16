@@ -27,7 +27,4 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     resize(800, 800);
 }
 
-MainWindow::~MainWindow()
-{
-    delete ui;
-}
+MainWindow::~MainWindow() = default;
