@@ -1,0 +1,7 @@
+qt_add_library(gs_ui STATIC
+    src/mainwindow.cpp
+    include/mainwindow.h
+)
+
+target_include_directories(gs_ui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(gs_ui PUBLIC Qt6::Widgets)
