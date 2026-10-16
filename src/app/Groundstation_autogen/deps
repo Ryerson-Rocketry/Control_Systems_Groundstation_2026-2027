@@ -1,0 +1,4 @@
+Groundstation_autogen/timestamp: \
+	/workspaces/Groundstation/src/app/CMakeLists.txt \
+	/workspaces/Groundstation/src/app/main.cpp \
+	/usr/bin/cmake

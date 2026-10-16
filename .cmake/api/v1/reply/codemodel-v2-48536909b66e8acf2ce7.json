@@ -1,0 +1,78 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"jsonFile" : "directory-.-Debug-f5ebdc15457944623624.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.16"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2
+					]
+				}
+			],
+			"name" : "Debug",
+			"projects" : 
+			[
+				{
+					"directoryIndexes" : 
+					[
+						0
+					],
+					"name" : "Groundstation",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "groundstation::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-groundstation-Debug-c3d6388fd6ee7e902b14.json",
+					"name" : "groundstation",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "groundstation_autogen::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-groundstation_autogen-Debug-f248aa2b194718f5ef8a.json",
+					"name" : "groundstation_autogen",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "groundstation_autogen_timestamp_deps::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-groundstation_autogen_timestamp_deps-Debug-d5737540de4ded4c1057.json",
+					"name" : "groundstation_autogen_timestamp_deps",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "/workspaces/Groundstation/build",
+		"source" : "/workspaces/Groundstation"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 7
+	}
+}
