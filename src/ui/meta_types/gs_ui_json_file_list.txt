@@ -1,1 +1,0 @@
-/workspaces/Groundstation/build/src/ui/gs_ui_autogen/include/../6YEA5652QU/moc_mainwindow.cpp.json

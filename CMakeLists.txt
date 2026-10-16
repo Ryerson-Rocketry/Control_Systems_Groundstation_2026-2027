@@ -22,6 +22,9 @@ file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS
 # Tests have their own main()
 list(FILTER SOURCES EXCLUDE REGEX ".*/tests/.*")
 
+# Skip generated files if someone builds inside the source tree
+list(FILTER SOURCES EXCLUDE REGEX ".*/(CMakeFiles|[^/]*_autogen)/.*")
+
 # Pi-only SPI source (adjust filename to match yours)
 if(NOT CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm")
     list(FILTER SOURCES EXCLUDE REGEX ".*/Spi[^/]*$")
