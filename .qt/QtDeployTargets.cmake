@@ -1,0 +1,2 @@
+set(__QT_DEPLOY_TARGET_groundstation_FILE /workspaces/Groundstation/build/groundstation)
+set(__QT_DEPLOY_TARGET_groundstation_TYPE EXECUTABLE)

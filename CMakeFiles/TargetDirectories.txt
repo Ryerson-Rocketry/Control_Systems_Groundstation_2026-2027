@@ -1,0 +1,5 @@
+/workspaces/Groundstation/build/CMakeFiles/groundstation.dir
+/workspaces/Groundstation/build/CMakeFiles/edit_cache.dir
+/workspaces/Groundstation/build/CMakeFiles/rebuild_cache.dir
+/workspaces/Groundstation/build/CMakeFiles/groundstation_autogen_timestamp_deps.dir
+/workspaces/Groundstation/build/CMakeFiles/groundstation_autogen.dir

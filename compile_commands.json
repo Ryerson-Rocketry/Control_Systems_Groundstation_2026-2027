@@ -1,0 +1,20 @@
+[
+{
+  "directory": "/workspaces/Groundstation/build",
+  "command": "/usr/bin/g++ -DQT_CORE_LIB -DQT_GUI_LIB -DQT_WIDGETS_LIB -I/workspaces/Groundstation/build/groundstation_autogen/include -I/workspaces/Groundstation/src/backend -I/workspaces/Groundstation/src/ui/include -isystem /usr/include/x86_64-linux-gnu/qt6/QtCore -isystem /usr/include/x86_64-linux-gnu/qt6 -isystem /usr/lib/x86_64-linux-gnu/qt6/mkspecs/linux-g++ -isystem /usr/include/x86_64-linux-gnu/qt6/QtWidgets -isystem /usr/include/x86_64-linux-gnu/qt6/QtGui -g -std=gnu++17 -o CMakeFiles/groundstation.dir/groundstation_autogen/mocs_compilation.cpp.o -c /workspaces/Groundstation/build/groundstation_autogen/mocs_compilation.cpp",
+  "file": "/workspaces/Groundstation/build/groundstation_autogen/mocs_compilation.cpp",
+  "output": "CMakeFiles/groundstation.dir/groundstation_autogen/mocs_compilation.cpp.o"
+},
+{
+  "directory": "/workspaces/Groundstation/build",
+  "command": "/usr/bin/g++ -DQT_CORE_LIB -DQT_GUI_LIB -DQT_WIDGETS_LIB -I/workspaces/Groundstation/build/groundstation_autogen/include -I/workspaces/Groundstation/src/backend -I/workspaces/Groundstation/src/ui/include -isystem /usr/include/x86_64-linux-gnu/qt6/QtCore -isystem /usr/include/x86_64-linux-gnu/qt6 -isystem /usr/lib/x86_64-linux-gnu/qt6/mkspecs/linux-g++ -isystem /usr/include/x86_64-linux-gnu/qt6/QtWidgets -isystem /usr/include/x86_64-linux-gnu/qt6/QtGui -g -std=gnu++17 -o CMakeFiles/groundstation.dir/src/app/main.cpp.o -c /workspaces/Groundstation/src/app/main.cpp",
+  "file": "/workspaces/Groundstation/src/app/main.cpp",
+  "output": "CMakeFiles/groundstation.dir/src/app/main.cpp.o"
+},
+{
+  "directory": "/workspaces/Groundstation/build",
+  "command": "/usr/bin/g++ -DQT_CORE_LIB -DQT_GUI_LIB -DQT_WIDGETS_LIB -I/workspaces/Groundstation/build/groundstation_autogen/include -I/workspaces/Groundstation/src/backend -I/workspaces/Groundstation/src/ui/include -isystem /usr/include/x86_64-linux-gnu/qt6/QtCore -isystem /usr/include/x86_64-linux-gnu/qt6 -isystem /usr/lib/x86_64-linux-gnu/qt6/mkspecs/linux-g++ -isystem /usr/include/x86_64-linux-gnu/qt6/QtWidgets -isystem /usr/include/x86_64-linux-gnu/qt6/QtGui -g -std=gnu++17 -o CMakeFiles/groundstation.dir/src/ui/src/mainwindow.cpp.o -c /workspaces/Groundstation/src/ui/src/mainwindow.cpp",
+  "file": "/workspaces/Groundstation/src/ui/src/mainwindow.cpp",
+  "output": "CMakeFiles/groundstation.dir/src/ui/src/mainwindow.cpp.o"
+}
+]
