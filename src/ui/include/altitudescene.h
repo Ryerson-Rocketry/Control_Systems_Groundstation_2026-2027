@@ -6,7 +6,7 @@
  * Purpose:
  *   The Kirby-style sky view in the middle of the dashboard. Kirby sits
  *   at the rocket's current altitude: standing on the pad, puffed up and
- *   floating on the way up, drifting down under his parasol from Apogee,
+ *   floating on the way up, drifting down under his parasol in Descent,
  *   and standing again once landed. The starry sky
  *   scrolls past him in the opposite direction to his vertical speed, so
  *   the scene moves while he does. A dotted trail shows the flight so

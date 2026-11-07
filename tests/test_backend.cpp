@@ -306,6 +306,7 @@ private slots:
         QCOMPARE(flightStateName(1), QStringLiteral("BOOSTER BURN"));
         QCOMPARE(flightStateName(2), QStringLiteral("CANARD ACTIVATION"));
         QCOMPARE(flightStateName(3), QStringLiteral("APOGEE"));
+        QCOMPARE(flightStateName(4), QStringLiteral("DESCENT"));
         QCOMPARE(flightStateName(9), QStringLiteral("UNKNOWN (9)"));
     }
 
@@ -321,7 +322,8 @@ private slots:
             if (data.flightState != StateCanardActivation)
                 QCOMPARE(data.pwmAngleDeg, 0.0);
         }
-        QCOMPARE(states, (QList<qint32>{StateIdle, StateBoosterBurn, StateCanardActivation, StateApogee}));
+        QCOMPARE(states, (QList<qint32>{StateIdle, StateBoosterBurn, StateCanardActivation, StateApogee,
+                                        StateDescent}));
     }
 
     void datagramRoundTrips()
@@ -643,7 +645,7 @@ private slots:
             QVERIFY(t.flightState == state || t.flightState == state + 1);
             state = t.flightState;
         }
-        QCOMPARE(state, qint32(StateApogee));
+        QCOMPARE(state, qint32(StateDescent));
         QVERIFY(received.last().landed());
         QVERIFY(!received[received.size() / 2].landed());
     }

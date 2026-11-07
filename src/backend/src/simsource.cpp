@@ -11,6 +11,7 @@ namespace {
 // follows the firmware's FlightState_t.
 constexpr double kPadS = 5.0;
 constexpr double kBurnS = 3.0;
+constexpr double kApogeeHoldS = 2.0;
 constexpr double kApogeeM = 700.0;
 constexpr double kAscentS = 20.0;
 constexpr double kDescentMps = 8.0;
@@ -29,7 +30,9 @@ qint32 flightStateAt(double seconds)
         return StateBoosterBurn;
     if (seconds < kPadS + kAscentS)
         return StateCanardActivation;
-    return StateApogee;
+    if (seconds < kPadS + kAscentS + kApogeeHoldS)
+        return StateApogee;
+    return StateDescent;
 }
 
 bool motorBurning(double seconds)

@@ -13,6 +13,7 @@ QString ghostFor(FlightState state)
     case StateBoosterBurn:      return Sprites::GhostPink;
     case StateCanardActivation: return Sprites::GhostCyan;
     case StateApogee:           return Sprites::GhostOrange;
+    case StateDescent:          return Sprites::GhostBlue;
     }
     return {};
 }

@@ -240,6 +240,9 @@ void AltitudeScene::paintEvent(QPaintEvent *)
         message = QStringLiteral("READY ON PAD");
         break;
     case StateApogee:
+        message = QStringLiteral("APOGEE!");
+        break;
+    case StateDescent:
         message = m_onGround ? QStringLiteral("TOUCHDOWN!")
                              : QStringLiteral("PARASOL OPEN! %1 m/s").arg(std::abs(m_speed), 0, 'f', 1);
         break;
@@ -282,7 +285,7 @@ void AltitudeScene::paintEvent(QPaintEvent *)
     // the parasol on the way down
     if (!m_trail.isEmpty()) {
         const QPointF last = m_trail.last();
-        const bool parasol = m_state == StateApogee && !m_onGround;
+        const bool parasol = m_state == StateDescent && !m_onGround;
         const bool floating = !parasol && !m_onGround;
         const QSize size = parasol ? QSize(34, 50) : QSize(36, 36);
 

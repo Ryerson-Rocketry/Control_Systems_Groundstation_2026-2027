@@ -53,6 +53,8 @@ QString flightStateName(qint32 state)
         return QStringLiteral("CANARD ACTIVATION");
     case StateApogee:
         return QStringLiteral("APOGEE");
+    case StateDescent:
+        return QStringLiteral("DESCENT");
     }
     return QStringLiteral("UNKNOWN (%1)").arg(state);
 }

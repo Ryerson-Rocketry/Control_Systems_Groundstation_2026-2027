@@ -17,7 +17,7 @@
 
 #include "telemetryframe.h"
 
-constexpr int kStateCount = 4;
+constexpr int kStateCount = 5;
 
 // For tight spots like the signs on the plots
 inline QString stateShortName(qint32 state)
@@ -82,10 +82,10 @@ struct Telemetry
     quint64 packetsLost = 0;     // packets rejected as corrupt or unreadable
     bool simulated = false;
 
-    // There's no landed state: the flight ends in Apogee, which holds all
-    // the way down, so landing is Apogee with the rocket still on the ground
+    // There's no landed state: the flight ends in Descent, so landing is
+    // Descent with the rocket sitting still at ground level
     bool onGround() const { return altitude < 2 && std::abs(velocity) < 1; }
-    bool landed() const { return flightState == StateApogee && onGround(); }
+    bool landed() const { return flightState == StateDescent && onGround(); }
 };
 
 inline Telemetry telemetryFromFrame(const TelemetryFrame &frame)

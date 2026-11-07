@@ -18,7 +18,7 @@ so use a transparent background.
 | `kirby_ground_0…9.png` | Kirby walking on the ground: on the pad before launch and after landing (12 fps) | 36 × 36 |
 | `kirby_float_0…2.png` | Kirby puffed up, floating up the altitude scene (10 fps) | 36 × 36 |
 | `kirby_parasol_0…19.png` | Kirby under his parasol on the way down (10 fps, plays forwards then back) | 34 × 50 |
-| `ghost_red.png`, `ghost_pink.png`, `ghost_cyan.png`, `ghost_orange.png` | Above each state on the phase track (IDLE → APOGEE) | 28 × 28 |
+| `ghost_red.png`, `ghost_pink.png`, `ghost_cyan.png`, `ghost_orange.png`, `ghost_blue.png` | Above each state on the phase track (IDLE → DESCENT) | 28 × 28 |
 | `ghost_dead.png` | Replaces a state's ghost once that state has passed | 28 × 28 |
 | `bird.png`    | Flies at the head of each graph line while in flight | 32 × 18 |
 | `dog.png`     | Pops up on the graphs at each phase change | 24 × 20 |

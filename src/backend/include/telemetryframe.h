@@ -26,6 +26,7 @@ enum FlightState : qint32
     StateBoosterBurn = 1,
     StateCanardActivation = 2,
     StateApogee = 3,
+    StateDescent = 4,
 };
 
 // Display name, e.g. "BOOSTER BURN"; unknown values show their number.
