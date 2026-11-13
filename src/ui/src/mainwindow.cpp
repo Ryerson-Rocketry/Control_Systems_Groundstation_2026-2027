@@ -127,6 +127,7 @@ void MainWindow::connectBackend(GroundstationBackend *backend, bool simulated)
     });
     connect(backend, &GroundstationBackend::packetRejected, this, [this](quint64 total) {
         m_rejected = total;
+        m_header->setLost(total);
     });
     connect(backend, &GroundstationBackend::logFailed, this, [this](const QString &message) {
         m_status->setLogging(false);

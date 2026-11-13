@@ -1,6 +1,9 @@
 #include <array>
 #include <memory>
 
+#include <fcntl.h>
+#include <unistd.h>
+
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSignalSpy>
@@ -18,6 +21,45 @@
 #include "udptransport.h"
 
 namespace {
+// Stand-in for the G0 GPIO line: a pipe that becomes readable on edge().
+class FakeDio0 : public InterruptLine
+{
+public:
+    ~FakeDio0() override { close(); }
+
+    bool open(QString *) override
+    {
+        if (m_fds[0] >= 0)
+            return true;
+        if (::pipe2(m_fds, O_NONBLOCK | O_CLOEXEC) != 0)
+            return false;
+        ++opens;
+        return true;
+    }
+    void close() override
+    {
+        for (int &fd : m_fds) {
+            if (fd >= 0)
+                ::close(fd);
+            fd = -1;
+        }
+    }
+    int fd() const override { return m_fds[0]; }
+    void clearEdges() override
+    {
+        char buffer[64];
+        while (m_fds[0] >= 0 && ::read(m_fds[0], buffer, sizeof(buffer)) > 0) {
+        }
+    }
+
+    void edge() { QVERIFY(::write(m_fds[1], "e", 1) == 1); }
+    bool isOpen() const { return m_fds[0] >= 0; }
+    int opens = 0;
+
+private:
+    int m_fds[2] = {-1, -1};
+};
+
 // Register-level stand-in for the SX127x chip, enough for the driver.
 class FakeRadio : public SpiBus
 {
@@ -123,11 +165,60 @@ private:
 
 const QByteArray kRadioHeadBroadcast("\xFF\xFF\x00\x00", 4);
 
-// One line exactly as the rocket sends it: scaled integers, 22 columns.
+// The full row as the rocket writes it to its SD card: scaled integers,
+// all 27 columns.
 const QByteArray kRocketLine =
     "123456,2,-1250,3400,98100,1525,-250,9000,2050,-3025,4575,"
     "4500,-150,275,312,15230,-842,9990050,-325,120,-80,-480,"
     "1,436577120,-793788450,35230,3031";
+
+// Lines exactly as Radio_BuildPacket() in the rocket firmware formats them
+// (Core/Src/Tasks/radio.c): the callsign, then 14 scaled integers.
+const QByteArray kRadioLineOnPad = "VE3HIV,15000,0,-1250,3400,99870,0,0,0,0,0,0,0,0,0";
+const QByteArray kRadioLineInFlight =
+    "VE3HIV,1834567,4,-25030,31090,523010,1250,-825,34020,-675,1,426928123,-771906456,215039,31060";
+const QByteArray kRadioLineLongest =
+    "VE3HIV,4294967295,5,-1600000,-1600000,-1600000,-200000,-200000,-200000,-1000,"
+    "1,-899999999,-1799999999,3000000,999900";
+
+// The same moment from Radio_BuildPacket() with the dashboard's fields
+// added (22 integers): what LineFormat::RadioPacketExtended decodes.
+const QByteArray kRadioLineExtended =
+    "VE3HIV,1834567,4,-25030,31090,523010,1250,-825,34020,250,-375,-16125,450,198725,21250,"
+    "7950150,625,-675,1,426928123,-771906456,215039,31060";
+
+RocketTelemetry radioSample()
+{
+    PacketParser parser;
+    const QList<TelemetryFrame> frames = parser.feed(kRadioLineInFlight + '\n');
+    return frames.isEmpty() ? RocketTelemetry{} : frames.first().data;
+}
+
+// What kRadioLineInFlight carries, and nothing else.
+void verifyRadioSample(const RocketTelemetry &data)
+{
+    QCOMPARE(data.timestampMs, 1834567u);
+    QCOMPARE(data.flightState, qint32(StateCanardActivation));
+    QCOMPARE(data.accelMg.x, -250.3);
+    QCOMPARE(data.accelMg.y, 310.9);
+    QCOMPARE(data.accelMg.z, 5230.1);
+    QCOMPARE(data.gyroDps.x, 12.5);
+    QCOMPARE(data.gyroDps.y, -8.25);
+    QCOMPARE(data.gyroDps.z, 340.2);
+    QCOMPARE(data.pwmAngleDeg, -6.75);
+    QCOMPARE(data.gps.hasFix, true);
+    QCOMPARE(data.gps.latitudeDeg, 42.6928123);
+    QCOMPARE(data.gps.longitudeDeg, -77.1906456);
+    QCOMPARE(data.gps.altitudeM, 2150.39);
+    QCOMPARE(data.gps.speedKmh, 310.6);
+
+    for (const double notSent : {data.magnetometer.x, data.magnetometer.y, data.magnetometer.z,
+                                 data.rollDeg, data.pitchDeg, data.yawDeg, data.tiltAngleDeg,
+                                 data.altitudeM, data.velocityMps, data.pressurePa, data.temperatureC,
+                                 data.rollErrorDeg, data.pitchErrorDeg}) {
+        QVERIFY(!hasValue(notSent));
+    }
+}
 
 const QByteArray kRocketHeader =
     "timestamp (ms),flight_state (enum),accel_x (centi-mg),accel_y (centi-mg),"
@@ -249,6 +340,184 @@ private slots:
         QCOMPARE(parser.feed(kRocketLine + '\n').size(), 1);
     }
 
+    void parserDecodesRadioPacket()
+    {
+        PacketParser parser;
+        const auto flight = parser.feed(kRadioLineInFlight + '\n');
+        QCOMPARE(flight.size(), 1);
+        verifyRadioSample(flight[0].data);
+        QVERIFY(flight[0].receivedAtUtc.isValid());
+
+        // On the pad with no GPS fix: the shortest line the rocket sends
+        const auto pad = parser.feed(kRadioLineOnPad + '\n');
+        QCOMPARE(pad.size(), 1);
+        QCOMPARE(pad[0].data.timestampMs, 15000u);
+        QCOMPARE(pad[0].data.flightState, qint32(StateIdle));
+        QCOMPARE(pad[0].data.accelMg.z, 998.7);
+        QCOMPARE(pad[0].data.gps.hasFix, false);
+        QCOMPARE(pad[0].data.gps.latitudeDeg, 0.0);
+
+        // Every field at its widest
+        const auto longest = parser.feed(kRadioLineLongest + '\n');
+        QCOMPARE(longest.size(), 1);
+        QCOMPARE(longest[0].data.timestampMs, 4294967295u);
+        QCOMPARE(longest[0].data.flightState, qint32(StateDescent));
+        QCOMPARE(longest[0].data.gps.longitudeDeg, -179.9999999);
+
+        QCOMPARE(parser.rejectedCount(), quint64(0));
+    }
+
+    void parserDecodesExtendedRadioPacket()
+    {
+        PacketParser parser;
+        const auto frames = parser.feed(kRadioLineExtended + '\n');
+        QCOMPARE(frames.size(), 1);
+        QCOMPARE(parser.rejectedCount(), quint64(0));
+
+        const RocketTelemetry &data = frames[0].data;
+        QCOMPARE(data.timestampMs, 1834567u);
+        QCOMPARE(data.flightState, qint32(StateCanardActivation));
+        QCOMPARE(data.accelMg.z, 5230.1);
+        QCOMPARE(data.gyroDps.z, 340.2);
+        QCOMPARE(data.rollDeg, 2.5);
+        QCOMPARE(data.pitchDeg, -3.75);
+        QCOMPARE(data.yawDeg, -161.25);
+        QCOMPARE(data.tiltAngleDeg, 4.5);
+        QCOMPARE(data.altitudeM, 1987.25);
+        QCOMPARE(data.velocityMps, 212.5);
+        QCOMPARE(data.pressurePa, 79501.5);
+        QCOMPARE(data.temperatureC, 6.25);
+        QCOMPARE(data.pwmAngleDeg, -6.75);
+        QCOMPARE(data.gps.hasFix, true);
+        QCOMPARE(data.gps.latitudeDeg, 42.6928123);
+        QCOMPARE(data.gps.speedKmh, 310.6);
+
+        for (const double notSent : {data.magnetometer.x, data.magnetometer.y, data.magnetometer.z,
+                                     data.rollErrorDeg, data.pitchErrorDeg}) {
+            QVERIFY(!hasValue(notSent));
+        }
+    }
+
+    void parserAcceptsAnyCallsignOrNone()
+    {
+        const QByteArray numbers = kRadioLineInFlight.mid(kRadioLineInFlight.indexOf(',') + 1);
+        const QList<QByteArray> lines = {numbers, "VA3ABC/P," + numbers, "ve3hiv," + numbers,
+                                         " VE3HIV ," + numbers};
+        PacketParser parser;
+        for (const QByteArray &line : lines) {
+            const auto frames = parser.feed(line + '\n');
+            QVERIFY2(frames.size() == 1, line.constData());
+            verifyRadioSample(frames[0].data);
+        }
+
+        // The full row may carry one too
+        const auto full = parser.feed("VE3HIV," + kRocketLine + '\n');
+        QCOMPARE(full.size(), 1);
+        verifySample(full[0].data);
+        QCOMPARE(parser.rejectedCount(), quint64(0));
+    }
+
+    void parserRejectsMalformedRadioPackets()
+    {
+        const QList<QByteArray> fields = kRadioLineInFlight.split(',');
+        const auto withField = [&fields](int index, const QByteArray &value) {
+            QList<QByteArray> changed = fields;
+            changed[index] = value;
+            return changed.join(',') + '\n';
+        };
+
+        PacketParser parser;
+        QVERIFY(parser.feed(fields.mid(0, fields.size() - 1).join(',') + '\n').isEmpty()); // field missing
+        QVERIFY(parser.feed(kRadioLineInFlight + ",7\n").isEmpty());                         // extra field
+        QVERIFY(parser.feed("VE3HIV\n").isEmpty());                                          // callsign only
+        QVERIFY(parser.feed("VE3HIV," + kRadioLineInFlight + '\n').isEmpty());               // two callsigns
+        QVERIFY(parser.feed("CALLSIGNTOOLONG" + kRadioLineInFlight.mid(6) + '\n').isEmpty());
+        QVERIFY(parser.feed(withField(1, "")).isEmpty());                                    // no timestamp
+        QVERIFY(parser.feed(withField(3, "1.5")).isEmpty());                                 // not an integer
+        QVERIFY(parser.feed(withField(10, "2")).isEmpty());                                  // gps_has_fix not 0/1
+        QCOMPARE(parser.rejectedCount(), quint64(8));
+
+        QCOMPARE(parser.feed(kRadioLineInFlight + '\n').size(), 1);
+    }
+
+    void lineFormatsAreToldApartByLength()
+    {
+        const QList<TelemetryColumn> columns = telemetryColumns();
+        QCOMPARE(lineColumns(LineFormat::FullRow).size(), 27);
+        QCOMPARE(lineColumns(LineFormat::RadioPacket).size(), 14);
+        QCOMPARE(lineColumns(LineFormat::RadioPacketExtended).size(), 22);
+
+        QSet<qsizetype> lengths;
+        for (const LineFormat format : lineFormats()) {
+            const QList<int> layout = lineColumns(format);
+            QVERIFY(!lengths.contains(layout.size()));
+            lengths.insert(layout.size());
+            QCOMPARE(QSet<int>(layout.begin(), layout.end()).size(), layout.size()); // no column twice
+
+            // Integer and bool fields can't be marked as not sent, so every line needs them
+            for (int index = 0; index < columns.size(); ++index) {
+                if (columns[index].scale == 1)
+                    QVERIFY2(layout.contains(index), columns[index].name.constData());
+            }
+        }
+    }
+
+    void encodeReproducesRadioPackets()
+    {
+        // Same bytes as the firmware's snprintf(), so the column lists can't
+        // drift from it unnoticed.
+        PacketParser parser;
+        const auto frames = parser.feed(kRadioLineInFlight + '\n' + kRadioLineExtended + '\n');
+        QCOMPARE(frames.size(), 2);
+        QCOMPARE(PacketParser::encode(frames[0], LineFormat::RadioPacket, "VE3HIV"), kRadioLineInFlight + '\n');
+        QCOMPARE(PacketParser::encode(frames[1], LineFormat::RadioPacketExtended, "VE3HIV"),
+                 kRadioLineExtended + '\n');
+
+        // A column the frame lacks goes out as 0
+        const QList<QByteArray> full = PacketParser::encode(frames[0]).trimmed().split(',');
+        QCOMPARE(full.size(), 27);
+        QCOMPARE(full[15], QByteArray("0")); // altitude
+    }
+
+    void dashboardShowsWhatTheRadioPacketLacks()
+    {
+        TelemetryFrame frame;
+        frame.data = radioSample();
+        Telemetry t = telemetryFromFrame(frame);
+
+        QCOMPARE(t.missionTime, 1834.567);
+        QCOMPARE(t.flightState, qint32(StateCanardActivation));
+        QVERIFY(qAbs(t.gpsSpeed - 310.6 / 3.6) < 1e-9);
+        QCOMPARE(formatReading(t.gpsAltitude, 1), QStringLiteral("2150.4"));
+        QCOMPARE(formatReading(-0.3, 0), QStringLiteral("0"));
+        QCOMPARE(formatReading(-161.25, 0), QStringLiteral("-161"));
+        for (const double notSent : {t.altitude, t.velocity, t.pressure, t.temperature, t.roll, t.pitch, t.yaw,
+                                     t.tiltAngle}) {
+            QVERIFY(!hasValue(notSent));
+            QCOMPARE(formatReading(notSent, 1), QStringLiteral("--"));
+        }
+
+        // Without altitude the flight state is the only evidence of where
+        // the rocket is, and it never says "landed".
+        QVERIFY(!t.hasAltitude());
+        QVERIFY(!t.onGround());
+        QVERIFY(!t.landed());
+        t.flightState = StateIdle;
+        QVERIFY(t.onGround());
+        t.flightState = StateDescent;
+        QVERIFY(!t.onGround());
+        QVERIFY(!t.landed());
+
+        // With it, landing is Descent at rest on the ground
+        t.altitude = 0.4;
+        t.velocity = -0.2;
+        QVERIFY(t.hasAltitude());
+        QVERIFY(t.landed());
+        t.altitude = 310.0;
+        QVERIFY(!t.onGround());
+        QVERIFY(!t.landed());
+    }
+
     void parserHandlesSplitChunks()
     {
         PacketParser parser;
@@ -302,12 +571,16 @@ private slots:
 
     void flightStatesMatchFirmwareEnum()
     {
+        // STATE_PAD .. STATE_DESCENT in the firmware's Core/Inc/Defs/states.h
         QCOMPARE(flightStateName(0), QStringLiteral("IDLE"));
         QCOMPARE(flightStateName(1), QStringLiteral("BOOSTER BURN"));
-        QCOMPARE(flightStateName(2), QStringLiteral("CANARD ACTIVATION"));
-        QCOMPARE(flightStateName(3), QStringLiteral("APOGEE"));
-        QCOMPARE(flightStateName(4), QStringLiteral("DESCENT"));
+        QCOMPARE(flightStateName(2), QStringLiteral("SEPARATION"));
+        QCOMPARE(flightStateName(3), QStringLiteral("SUSTAINER IGNITION"));
+        QCOMPARE(flightStateName(4), QStringLiteral("CANARD ACTIVATION"));
+        QCOMPARE(flightStateName(5), QStringLiteral("DESCENT"));
         QCOMPARE(flightStateName(9), QStringLiteral("UNKNOWN (9)"));
+        QCOMPARE(kStateCount, 6);
+        QCOMPARE(qint32(StateDescent), kStateCount - 1);
     }
 
     void simulatorFliesEveryStateInOrder()
@@ -322,8 +595,8 @@ private slots:
             if (data.flightState != StateCanardActivation)
                 QCOMPARE(data.pwmAngleDeg, 0.0);
         }
-        QCOMPARE(states, (QList<qint32>{StateIdle, StateBoosterBurn, StateCanardActivation, StateApogee,
-                                        StateDescent}));
+        QCOMPARE(states, (QList<qint32>{StateIdle, StateBoosterBurn, StateSeparation, StateSustainerIgnition,
+                                        StateCanardActivation, StateDescent}));
     }
 
     void datagramRoundTrips()
@@ -347,6 +620,29 @@ private slots:
         values.remove("altitude");
         root["values"] = values;
         QVERIFY(!decodeDatagram(QJsonDocument(root).toJson(), &frame));
+    }
+
+    void datagramCarriesMissingColumnsAsNull()
+    {
+        TelemetryFrame original;
+        original.data = radioSample();
+        original.receivedAtUtc = QDateTime::currentDateTimeUtc();
+
+        const QByteArray datagram = encodeDatagram(original);
+        QJsonObject root = QJsonDocument::fromJson(datagram).object();
+        QJsonObject values = root["values"].toObject();
+        QVERIFY(values.contains("altitude"));
+        QVERIFY(values["altitude"].isNull());
+        QCOMPARE(values["gps_altitude"].toDouble(), 2150.39);
+
+        TelemetryFrame decoded;
+        QVERIFY(decodeDatagram(datagram, &decoded));
+        verifyRadioSample(decoded.data);
+
+        // A field every packet carries can't be null
+        values["flight_state"] = QJsonValue(QJsonValue::Null);
+        root["values"] = values;
+        QVERIFY(!decodeDatagram(QJsonDocument(root).toJson(), &decoded));
     }
 
     void udpDeliversFramesOnLoopbackOnly()
@@ -395,6 +691,31 @@ private slots:
         const QString copy = QDir(usb.path()).filePath(
             QStringLiteral("GroundstationLogs/%1/telemetry.csv").arg(session.dirName()));
         QCOMPARE(readAll(copy).count('\n'), 4);
+    }
+
+    void loggerLeavesMissingColumnsEmpty()
+    {
+        QTemporaryDir root;
+        TelemetryLogger logger(root.path());
+        QVERIFY(logger.startSession());
+
+        TelemetryFrame frame;
+        frame.data = radioSample();
+        frame.receivedAtUtc = QDateTime::currentDateTimeUtc();
+        logger.log(frame);
+
+        const QList<QByteArray> lines = readAll(QDir(logger.sessionDir()).filePath("telemetry.csv")).split('\n');
+        QCOMPARE(lines.size(), 3); // header, 1 row, trailing empty
+        QVERIFY(!lines[1].contains("nan"));
+
+        // Still one cell per column, after received_utc
+        const QList<QByteArray> cells = lines[1].split(',');
+        const QList<int> sent = lineColumns(LineFormat::RadioPacket);
+        QCOMPARE(cells.size(), telemetryColumns().size() + 1);
+        for (int index = 0; index < telemetryColumns().size(); ++index)
+            QCOMPARE(cells[index + 1].isEmpty(), !sent.contains(index));
+        QCOMPARE(cells[1], QByteArray("1834567"));
+        QCOMPARE(cells[3], QByteArray("-250.30"));
     }
 
     void loggerSeparatesSessions()
@@ -574,6 +895,7 @@ private slots:
         FakeRadio *fake = bus.get();
         LoRaConfig config;
         config.resetLine = -1;
+        config.dio0Line = -1;
         LoRaSource source(config, std::move(bus));
 
         QSignalSpy link(&source, &TelemetrySource::linkChanged);
@@ -595,14 +917,31 @@ private slots:
         QCOMPARE(bytes.size(), 1);
     }
 
+    void simulatedFlightOverRadioReachesDashboardInSiUnits_data()
+    {
+        QTest::addColumn<int>("format");
+        QTest::addColumn<QByteArray>("callsign");
+        QTest::addColumn<bool>("carriesAltitude");
+        QTest::newRow("radio packet as the firmware sends it")
+            << int(LineFormat::RadioPacket) << QByteArray("VE3HIV") << false;
+        QTest::newRow("radio packet with the dashboard's fields")
+            << int(LineFormat::RadioPacketExtended) << QByteArray("VE3HIV") << true;
+        QTest::newRow("full row") << int(LineFormat::FullRow) << QByteArray() << true;
+    }
+
     // A whole simulated flight as raw LoRa packets: fake chip -> real driver
     // -> header strip -> parser -> the SI values the dashboard shows.
     void simulatedFlightOverRadioReachesDashboardInSiUnits()
     {
+        QFETCH(int, format);
+        QFETCH(QByteArray, callsign);
+        QFETCH(bool, carriesAltitude);
+
         auto bus = std::make_unique<FakeRadio>();
         FakeRadio *fake = bus.get();
         LoRaConfig config;
         config.resetLine = -1;
+        config.dio0Line = -1;
         LoRaSource source(config, std::move(bus));
         PacketParser parser;
         QList<Telemetry> received;
@@ -617,7 +956,7 @@ private slots:
         constexpr int kStepMs = 1000;
         for (int ms = 0; ms <= kFlightMs; ms += kStepMs) {
             const TelemetryFrame sent = SimSource::frameAt(quint32(ms));
-            QByteArray line = PacketParser::encode(sent);
+            QByteArray line = PacketParser::encode(sent, static_cast<LineFormat>(format), callsign);
             line.chop(1);  // the radio packet is the line, without a newline
             QVERIFY2(kRadioHeadBroadcast.size() + line.size() <= 255, "packet too big for one LoRa frame");
 
@@ -628,25 +967,31 @@ private slots:
             const Telemetry &t = received.last();
             QCOMPARE(t.missionTime, ms / 1000.0);
             QCOMPARE(t.flightState, sent.data.flightState);
-            QVERIFY(qAbs(t.altitude - sent.data.altitudeM) <= 0.01);
-            QVERIFY(qAbs(t.pressure - sent.data.pressurePa / 1000.0) <= 0.0001);
             QVERIFY(qAbs(t.accelZ - sent.data.accelMg.z * 9.80665 / 1000.0) <= 0.001);
             QVERIFY(qAbs(t.gpsSpeed - sent.data.gps.speedKmh / 3.6) <= 0.01);
             QCOMPARE(t.gpsHasFix, sent.data.gps.hasFix);
             if (t.gpsHasFix)
                 QVERIFY(qAbs(t.gpsLatitude - sent.data.gps.latitudeDeg) <= 1e-7);
+
+            QCOMPARE(t.hasAltitude(), carriesAltitude);
+            if (carriesAltitude) {
+                QVERIFY(qAbs(t.altitude - sent.data.altitudeM) <= 0.01);
+                QVERIFY(qAbs(t.pressure - sent.data.pressurePa / 1000.0) <= 0.0001);
+            }
         }
 
         QCOMPARE(parser.rejectedCount(), quint64(0));
 
-        // Every state shows up, in order, and the flight ends on the ground
+        // Every state shows up, in order
         qint32 state = StateIdle;
         for (const Telemetry &t : received) {
             QVERIFY(t.flightState == state || t.flightState == state + 1);
             state = t.flightState;
         }
         QCOMPARE(state, qint32(StateDescent));
-        QVERIFY(received.last().landed());
+
+        // The flight ends on the ground, which only altitude can show
+        QCOMPARE(received.last().landed(), carriesAltitude);
         QVERIFY(!received[received.size() / 2].landed());
     }
 
@@ -656,6 +1001,7 @@ private slots:
         FakeRadio *fake = bus.get();
         LoRaConfig config;
         config.resetLine = -1;
+        config.dio0Line = -1;
         LoRaSource source(config, std::move(bus));
 
         QSignalSpy link(&source, &TelemetrySource::linkChanged);
@@ -776,6 +1122,7 @@ private slots:
     {
         // No reset pulse on a guessed pin until the wiring is confirmed.
         QCOMPARE(LoRaConfig{}.resetLine, -1);
+        QCOMPARE(LoRaConfig{}.dio0Line, 22); // G0 on physical pin 15
         QVERIFY(LoRaConfig{}.spiDevice.isEmpty());
 
         // This machine has no SPI devices, so both probes fail and the
@@ -791,6 +1138,103 @@ private slots:
         source.stop();
     }
 
+    void loraSourceReadsPacketOnG0Edge()
+    {
+        auto bus = std::make_unique<FakeRadio>();
+        FakeRadio *fake = bus.get();
+        auto dio0 = std::make_unique<FakeDio0>();
+        FakeDio0 *g0 = dio0.get();
+        LoRaConfig config;
+        config.resetLine = -1;
+        LoRaSource source(config, std::move(bus), std::move(dio0));
+
+        QSignalSpy link(&source, &TelemetrySource::linkChanged);
+        QSignalSpy bytes(&source, &TelemetrySource::bytesReceived);
+        source.start();
+        QCOMPARE(link.size(), 1);
+        QVERIFY(link[0][0].toBool());
+        QVERIFY2(link[0][1].toString().startsWith("G0 interrupt, LoRa 433.0 MHz SF9 125 kHz"),
+                 qPrintable(link[0][1].toString()));
+
+        // Read well before the health check would get to it.
+        fake->receive(kRadioHeadBroadcast + kRocketLine);
+        g0->edge();
+        QTRY_COMPARE_WITH_TIMEOUT(bytes.size(), 1, LoRaSource::kHealthCheckIntervalMs / 2);
+        QCOMPARE(bytes[0][0].toByteArray(), kRocketLine + '\n');
+        QCOMPARE(fake->regs[0x12], quint8(0)); // flags cleared, so G0 drops
+
+        // A chip reset is still noticed with no edge at all.
+        fake->regs[0x01] = 0x09;
+        QTRY_COMPARE(link.size(), 2);
+        QVERIFY(!link[1][0].toBool());
+        QVERIFY(!g0->isOpen());
+        QTRY_COMPARE(link.size(), 3);
+        QVERIFY(link[2][1].toString().contains("G0 interrupt"));
+        QCOMPARE(g0->opens, 2);
+    }
+
+    void loraSourcePollsWhenG0NeverRises()
+    {
+        // G0 claimed but not wired: packets only turn up on health checks.
+        auto bus = std::make_unique<FakeRadio>();
+        FakeRadio *fake = bus.get();
+        LoRaConfig config;
+        config.resetLine = -1;
+        LoRaSource source(config, std::move(bus), std::make_unique<FakeDio0>());
+
+        QSignalSpy link(&source, &TelemetrySource::linkChanged);
+        QSignalSpy bytes(&source, &TelemetrySource::bytesReceived);
+        source.start();
+
+        for (int packet = 1; packet <= 3; ++packet) {
+            fake->receive(kRadioHeadBroadcast + kRocketLine);
+            QTRY_COMPARE(bytes.size(), packet); // nothing lost meanwhile
+        }
+        QTRY_COMPARE(link.size(), 2);
+        QVERIFY(link[1][0].toBool());
+        QVERIFY2(link[1][1].toString().startsWith("Polling, no G0 signal: check GPIO 22"),
+                 qPrintable(link[1][1].toString()));
+
+        fake->receive(kRadioHeadBroadcast + kRocketLine);
+        QTRY_COMPARE_WITH_TIMEOUT(bytes.size(), 4, LoRaSource::kHealthCheckIntervalMs / 2);
+    }
+
+    void radioPacketFromFirmwareReachesFrontendHub()
+    {
+        // Byte for byte what the rocket's radio task puts on air: its 4-byte
+        // RadioHead-style header (to, from, id, flags), then the line from
+        // Radio_BuildPacket(). Radio -> driver -> parser -> UDP -> hub.
+        auto bus = std::make_unique<FakeRadio>();
+        FakeRadio *fake = bus.get();
+        LoRaConfig config;
+        config.resetLine = -1;
+        config.dio0Line = -1;
+        LoRaSource source(config, std::move(bus));
+
+        UdpTelemetryReceiver receiver;
+        QVERIFY(receiver.start(0));
+        UdpTelemetrySender sender(receiver.port());
+        TelemetryHub hub;
+        connect(&receiver, &UdpTelemetryReceiver::frameReceived, &hub, &TelemetryHub::addFrame);
+
+        PacketParser parser;
+        connect(&source, &TelemetrySource::bytesReceived, this, [&](const QByteArray &bytes) {
+            for (const TelemetryFrame &frame : parser.feed(bytes))
+                sender.send(frame);
+        });
+        source.start();
+
+        fake->receive(QByteArray("\xFF\x01\x07\x00", 4) + kRadioLineInFlight);
+        QTRY_COMPARE(hub.frameCount(), quint64(1));
+        verifyRadioSample(hub.history().last().data);
+
+        fake->receive(QByteArray("\xFF\x01\x08\x00", 4) + kRadioLineOnPad);
+        QTRY_COMPARE(hub.frameCount(), quint64(2));
+        QCOMPARE(hub.history().last().data.timestampMs, 15000u);
+        QCOMPARE(hub.history().last().data.gps.hasFix, false);
+        QCOMPARE(parser.rejectedCount(), quint64(0));
+    }
+
     void loraSourcePassesRocketLinesToBackendParser()
     {
         // Radio packet -> source -> parser, as wired in the worker.
@@ -798,6 +1242,7 @@ private slots:
         FakeRadio *fake = bus.get();
         LoRaConfig config;
         config.resetLine = -1;
+        config.dio0Line = -1;
         LoRaSource source(config, std::move(bus));
 
         PacketParser parser;

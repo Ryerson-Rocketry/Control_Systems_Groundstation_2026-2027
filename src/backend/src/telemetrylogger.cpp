@@ -71,9 +71,13 @@ void TelemetryLogger::log(const TelemetryFrame &frame)
     const QList<TelemetryColumn> columns = telemetryColumns();
     const QList<double> values = telemetryValues(frame);
 
+    // A column the packet lacked is left empty, never written as 0.
     QByteArray row = frame.receivedAtUtc.toString(Qt::ISODateWithMs).toUtf8();
-    for (qsizetype index = 0; index < values.size(); ++index)
-        row += ',' + QByteArray::number(values[index], 'f', decimalsFor(columns[index].scale));
+    for (qsizetype index = 0; index < values.size(); ++index) {
+        row += ',';
+        if (hasValue(values[index]))
+            row += QByteArray::number(values[index], 'f', decimalsFor(columns[index].scale));
+    }
     row += '\n';
 
     const bool ok = m_file.write(row) == row.size() && m_file.flush();

@@ -28,7 +28,7 @@ void BackendWorker::start()
         m_source = new I2cSource(m_config.i2c, {}, this);
         break;
     case TelemetryInput::LoRa:
-        m_source = new LoRaSource(m_config.lora, {}, this);
+        m_source = new LoRaSource(m_config.lora, {}, {}, this);
         break;
     case TelemetryInput::Serial:
         m_source = new SerialSource(m_config.portName, m_config.baudRate, this);

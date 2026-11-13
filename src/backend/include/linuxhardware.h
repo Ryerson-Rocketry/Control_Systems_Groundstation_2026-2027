@@ -10,8 +10,8 @@
  * linuxhardware.h
  * Purpose:
  *   Raspberry Pi access for the radio: I2C through /dev/i2c-N, SPI
- *   through /dev/spidevX.Y, and the reset pin through the GPIO character
- *   device. On other systems these fail with a clear message, so the app
+ *   through /dev/spidevX.Y, and the reset and G0 (DIO0) pins through the
+ *   GPIO character device. On other systems these fail with a clear message, so the app
  *   still builds and runs in simulation.
  *
  * On the Pi, enable the bus in use (sudo raspi-config nonint do_i2c 0, or
@@ -47,6 +47,25 @@ public:
 private:
     QString m_device;
     quint32 m_speedHz;
+    int m_fd = -1;
+};
+
+// Rising edges on one GPIO line, read through the GPIO character device.
+// Pulled down so an unconnected pin stays quiet instead of floating.
+class LinuxGpioInterrupt : public InterruptLine
+{
+public:
+    LinuxGpioInterrupt(const QString &chipDevice, int line);
+    ~LinuxGpioInterrupt() override;
+
+    bool open(QString *error) override;
+    void close() override;
+    int fd() const override { return m_fd; }
+    void clearEdges() override;
+
+private:
+    QString m_chipDevice;
+    int m_line;
     int m_fd = -1;
 };
 

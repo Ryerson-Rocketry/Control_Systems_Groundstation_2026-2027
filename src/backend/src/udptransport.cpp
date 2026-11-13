@@ -1,5 +1,7 @@
 #include "udptransport.h"
 
+#include <limits>
+
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QNetworkDatagram>
@@ -14,9 +16,12 @@ QByteArray encodeDatagram(const TelemetryFrame &frame)
     const QList<TelemetryColumn> columns = telemetryColumns();
     const QList<double> values = telemetryValues(frame);
 
+    // JSON has no NaN, so a column the packet lacked goes out as null.
     QJsonObject fields;
-    for (qsizetype index = 0; index < values.size(); ++index)
-        fields.insert(QString::fromLatin1(columns[index].name), values[index]);
+    for (qsizetype index = 0; index < values.size(); ++index) {
+        fields.insert(QString::fromLatin1(columns[index].name),
+                      hasValue(values[index]) ? QJsonValue(values[index]) : QJsonValue(QJsonValue::Null));
+    }
 
     QJsonObject root;
     root.insert(kReceivedKey, frame.receivedAtUtc.toString(Qt::ISODateWithMs));
@@ -40,10 +45,14 @@ bool decodeDatagram(const QByteArray &datagram, TelemetryFrame *frame)
     QList<double> values;
     values.reserve(columns.size());
     for (const TelemetryColumn &column : columns) {
+        // Every column must be named: null means not sent, absent is an error.
         const QJsonValue value = fields.value(QString::fromLatin1(column.name));
-        if (!value.isDouble())
+        if (value.isNull())
+            values.append(std::numeric_limits<double>::quiet_NaN());
+        else if (value.isDouble())
+            values.append(value.toDouble());
+        else
             return false;
-        values.append(value.toDouble());
     }
 
     if (!setTelemetryValues(values, frame))

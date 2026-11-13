@@ -31,6 +31,7 @@ inline const QString GhostRed    = QStringLiteral("ghost_red");
 inline const QString GhostPink   = QStringLiteral("ghost_pink");
 inline const QString GhostCyan   = QStringLiteral("ghost_cyan");
 inline const QString GhostOrange = QStringLiteral("ghost_orange");
+inline const QString GhostPurple = QStringLiteral("ghost_purple");
 inline const QString GhostBlue   = QStringLiteral("ghost_blue");
 inline const QString GhostDead   = QStringLiteral("ghost_dead");
 

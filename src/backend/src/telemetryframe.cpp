@@ -40,6 +40,41 @@ void visitFields(Telemetry &data, Visitor &&visit)
     visit("gps_speed", "km/h", 100, data.gps.speedKmh);
 }
 
+// Must match the firmware's snprintf() argument order exactly.
+const QList<QByteArray> kRadioPacketColumns = {
+    "timestamp", "flight_state",
+    "accel_x", "accel_y", "accel_z",
+    "gyro_x", "gyro_y", "gyro_z",
+    "pwm_angle",
+    "gps_has_fix", "gps_latitude", "gps_longitude", "gps_altitude", "gps_speed",
+};
+
+// The full row's order with the magnetometer and the two control errors
+// left out, which keeps the worst case under a second on air at SF9.
+const QList<QByteArray> kRadioPacketExtendedColumns = {
+    "timestamp", "flight_state",
+    "accel_x", "accel_y", "accel_z",
+    "gyro_x", "gyro_y", "gyro_z",
+    "roll", "pitch", "yaw", "tilt_angle",
+    "altitude", "velocity", "pressure", "temperature",
+    "pwm_angle",
+    "gps_has_fix", "gps_latitude", "gps_longitude", "gps_altitude", "gps_speed",
+};
+
+QList<int> columnIndexes(const QList<QByteArray> &names)
+{
+    const QList<TelemetryColumn> columns = telemetryColumns();
+    QList<int> indexes;
+    for (const QByteArray &name : names) {
+        for (int index = 0; index < columns.size(); ++index) {
+            if (columns[index].name == name)
+                indexes.append(index);
+        }
+    }
+    Q_ASSERT(indexes.size() == names.size());
+    return indexes;
+}
+
 }
 
 QString flightStateName(qint32 state)
@@ -49,10 +84,12 @@ QString flightStateName(qint32 state)
         return QStringLiteral("IDLE");
     case StateBoosterBurn:
         return QStringLiteral("BOOSTER BURN");
+    case StateSeparation:
+        return QStringLiteral("SEPARATION");
+    case StateSustainerIgnition:
+        return QStringLiteral("SUSTAINER IGNITION");
     case StateCanardActivation:
         return QStringLiteral("CANARD ACTIVATION");
-    case StateApogee:
-        return QStringLiteral("APOGEE");
     case StateDescent:
         return QStringLiteral("DESCENT");
     }
@@ -90,17 +127,17 @@ bool setTelemetryValues(const QList<double> &values, TelemetryFrame *frame)
     visitFields(data, [&](const char *, const char *, int, auto &field) {
         using Field = std::decay_t<decltype(field)>;
         const double value = values[index++];
-        if (!std::isfinite(value)) {
-            ok = false;
-            return;
-        }
         if constexpr (std::is_integral_v<Field>) {
+            // Also catches NaN: these fields are in every packet.
             const double min = static_cast<double>(std::numeric_limits<Field>::min());
             const double max = static_cast<double>(std::numeric_limits<Field>::max());
-            if (value < min || value > max || value != std::floor(value)) {
+            if (!(value >= min && value <= max) || value != std::floor(value)) {
                 ok = false;
                 return;
             }
+        } else if (std::isinf(value)) {
+            ok = false;
+            return;
         }
         field = static_cast<Field>(value);
     });
@@ -108,4 +145,25 @@ bool setTelemetryValues(const QList<double> &values, TelemetryFrame *frame)
     if (ok)
         frame->data = data;
     return ok;
+}
+
+QList<int> lineColumns(LineFormat format)
+{
+    switch (format) {
+    case LineFormat::RadioPacket:
+        return columnIndexes(kRadioPacketColumns);
+    case LineFormat::RadioPacketExtended:
+        return columnIndexes(kRadioPacketExtendedColumns);
+    case LineFormat::FullRow:
+        break;
+    }
+    QList<int> all;
+    for (int index = 0; index < telemetryColumns().size(); ++index)
+        all.append(index);
+    return all;
+}
+
+QList<LineFormat> lineFormats()
+{
+    return {LineFormat::FullRow, LineFormat::RadioPacket, LineFormat::RadioPacketExtended};
 }

@@ -11,9 +11,10 @@
  *   module. Talks to the chip through SpiBus only, so tests can run it
  *   against a fake register map instead of real hardware.
  *
- * The chip stays in continuous receive. poll() is called on a timer and
- * reports received packets and faults (such as the chip resetting after
- * a brownout), after which begin() is retried.
+ * The chip stays in continuous receive with DIO0 (the board's G0 pin)
+ * mapped to RxDone. poll() is called when G0 rises, and on a slow timer
+ * as a health check; it reports received packets and faults (such as the
+ * chip resetting after a brownout), after which begin() is retried.
  *
  * Every LoRaSettings value must match the rocket's radio exactly or
  * nothing will be received. Defaults are the rocket's settings:
@@ -46,6 +47,20 @@ public:
     virtual void close() = 0;
     // Full duplex: sends data and overwrites it with what came back.
     virtual bool transfer(QByteArray *data) = 0;
+};
+
+// A GPIO input that reports rising edges through a file descriptor that
+// becomes readable, so the event loop can wait on it.
+class InterruptLine
+{
+public:
+    virtual ~InterruptLine() = default;
+    virtual bool open(QString *error) = 0;
+    virtual void close() = 0;
+    // Readable when an edge is pending; -1 while closed.
+    virtual int fd() const = 0;
+    // Consume pending edges so fd() stops being readable.
+    virtual void clearEdges() = 0;
 };
 
 class Sx127x

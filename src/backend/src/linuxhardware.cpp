@@ -49,6 +49,16 @@ LinuxSpiBus::~LinuxSpiBus()
     close();
 }
 
+LinuxGpioInterrupt::LinuxGpioInterrupt(const QString &chipDevice, int line)
+    : m_chipDevice(chipDevice), m_line(line)
+{
+}
+
+LinuxGpioInterrupt::~LinuxGpioInterrupt()
+{
+    close();
+}
+
 #ifdef Q_OS_LINUX
 
 bool LinuxI2cBus::open(QString *error)
@@ -141,6 +151,60 @@ bool LinuxSpiBus::transfer(QByteArray *data)
     return ioctl(m_fd, SPI_IOC_MESSAGE(1), &request) >= 0;
 }
 
+bool LinuxGpioInterrupt::open(QString *error)
+{
+    if (m_fd >= 0)
+        return true;
+
+    const int chip = ::open(m_chipDevice.toLocal8Bit().constData(), O_RDWR | O_CLOEXEC);
+    if (chip < 0) {
+        *error = QStringLiteral("Cannot open %1: %2").arg(m_chipDevice, systemError());
+        return false;
+    }
+
+    gpio_v2_line_request request;
+    std::memset(&request, 0, sizeof(request));
+    request.offsets[0] = static_cast<quint32>(m_line);
+    request.num_lines = 1;
+    std::strncpy(request.consumer, "groundstation-radio-g0", sizeof(request.consumer) - 1);
+    request.config.flags = GPIO_V2_LINE_FLAG_INPUT | GPIO_V2_LINE_FLAG_EDGE_RISING
+                           | GPIO_V2_LINE_FLAG_BIAS_PULL_DOWN;
+
+    const int requested = ioctl(chip, GPIO_V2_GET_LINE_IOCTL, &request);
+    ::close(chip);
+    if (requested < 0) {
+        *error = QStringLiteral("Cannot claim GPIO %1 on %2: %3").arg(m_line).arg(m_chipDevice, systemError());
+        return false;
+    }
+
+    // Non-blocking so clearEdges() can read until nothing is left.
+    const int flags = fcntl(request.fd, F_GETFL);
+    if (flags < 0 || fcntl(request.fd, F_SETFL, flags | O_NONBLOCK) < 0) {
+        *error = QStringLiteral("Cannot configure GPIO %1: %2").arg(m_line).arg(systemError());
+        ::close(request.fd);
+        return false;
+    }
+    m_fd = request.fd;
+    return true;
+}
+
+void LinuxGpioInterrupt::close()
+{
+    if (m_fd >= 0) {
+        ::close(m_fd);
+        m_fd = -1;
+    }
+}
+
+void LinuxGpioInterrupt::clearEdges()
+{
+    if (m_fd < 0)
+        return;
+    gpio_v2_line_event events[16];
+    while (::read(m_fd, events, sizeof(events)) > 0) {
+    }
+}
+
 bool pulseGpioLow(const QString &chipDevice, int line, QString *error)
 {
     const int chip = ::open(chipDevice.toLocal8Bit().constData(), O_RDWR | O_CLOEXEC);
@@ -210,6 +274,20 @@ void LinuxSpiBus::close()
 bool LinuxSpiBus::transfer(QByteArray *)
 {
     return false;
+}
+
+bool LinuxGpioInterrupt::open(QString *error)
+{
+    *error = kUnsupported;
+    return false;
+}
+
+void LinuxGpioInterrupt::close()
+{
+}
+
+void LinuxGpioInterrupt::clearEdges()
+{
 }
 
 bool pulseGpioLow(const QString &, int, QString *error)

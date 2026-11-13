@@ -11,7 +11,8 @@
  *   scrolls past him in the opposite direction to his vertical speed, so
  *   the scene moves while he does. A dotted trail shows the flight so
  *   far, a dashed line marks the highest point, and a status bar along
- *   the top shows what's happening and the last event.
+ *   the top shows what's happening and the last event. When the packet
+ *   carries no altitude the bar says so and nothing is plotted.
  */
 
 #include "telemetry.h"
@@ -46,6 +47,7 @@ private:
     double m_speed = 0;
     qint32 m_state = StateIdle;
     bool m_onGround = true;
+    bool m_hasAltitude = true; // false once a packet arrives without it
     QString m_lastEvent;
 
     // Animation: runs continuously, independent of the packet rate

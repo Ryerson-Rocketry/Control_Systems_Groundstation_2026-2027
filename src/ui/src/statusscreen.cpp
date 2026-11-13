@@ -131,7 +131,7 @@ void StatusScreen::updateTelemetry(const Telemetry &telemetry)
 {
     m_phase->setText(flightStateName(telemetry.flightState));
     m_packets->setText(QStringLiteral("PKTS %1").arg(telemetry.packetsReceived));
-    m_pressure->setText(QStringLiteral("%1 kPa").arg(telemetry.pressure, 0, 'f', 1));
+    m_pressure->setText(QStringLiteral("%1 kPa").arg(formatReading(telemetry.pressure, 1)));
     m_gps->setText(telemetry.gpsHasFix ? QStringLiteral("FIX") : QStringLiteral("NO FIX"));
     m_segments->setState(telemetry.flightState);
     if (telemetry.packetsReceived > 0)

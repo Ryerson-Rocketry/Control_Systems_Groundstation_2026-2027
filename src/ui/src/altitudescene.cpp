@@ -138,9 +138,15 @@ void AltitudeScene::addSample(const Telemetry &telemetry)
         m_trail.clear();
         m_launchTime = telemetry.missionTime;
     }
-    m_trail.append(QPointF(telemetry.missionTime - m_launchTime, telemetry.altitude));
-    m_maxAltitude = std::max(m_maxAltitude, telemetry.altitude);
-    m_speed = telemetry.velocity;
+
+    // The radio packet may not carry altitude: then there is nothing to
+    // plot, and the sky stays still rather than scroll at a made-up speed.
+    m_hasAltitude = telemetry.hasAltitude();
+    if (m_hasAltitude) {
+        m_trail.append(QPointF(telemetry.missionTime - m_launchTime, telemetry.altitude));
+        m_maxAltitude = std::max(m_maxAltitude, telemetry.altitude);
+    }
+    m_speed = m_hasAltitude ? telemetry.velocity : 0.0;
     m_state = telemetry.flightState;
     m_onGround = telemetry.onGround();
 }
@@ -157,6 +163,7 @@ void AltitudeScene::clear()
     m_speed = 0;
     m_state = StateIdle;
     m_onGround = true;
+    m_hasAltitude = true;
     m_lastEvent.clear();
 }
 
@@ -239,9 +246,6 @@ void AltitudeScene::paintEvent(QPaintEvent *)
     case StateIdle:
         message = QStringLiteral("READY ON PAD");
         break;
-    case StateApogee:
-        message = QStringLiteral("APOGEE!");
-        break;
     case StateDescent:
         message = m_onGround ? QStringLiteral("TOUCHDOWN!")
                              : QStringLiteral("PARASOL OPEN! %1 m/s").arg(std::abs(m_speed), 0, 'f', 1);
@@ -250,6 +254,8 @@ void AltitudeScene::paintEvent(QPaintEvent *)
         message = QStringLiteral("%1 %2 m/s").arg(stateShortName(m_state)).arg(m_speed, 0, 'f', 1);
         break;
     }
+    if (!m_hasAltitude)
+        message = QStringLiteral("NO ALTITUDE DATA");
     p.fillRect(status, Qt::white);
     p.setPen(QPen(Theme::Ink, 3));
     p.drawLine(status.left(), status.bottom(), status.right(), status.bottom());

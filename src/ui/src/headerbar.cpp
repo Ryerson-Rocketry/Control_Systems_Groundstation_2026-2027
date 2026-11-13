@@ -81,11 +81,16 @@ void HeaderBar::setStatus(const QString &text)
     m_status->setText(m_status->fontMetrics().elidedText(text, Qt::ElideRight, kStatusWidth));
 }
 
+void HeaderBar::setLost(quint64 lost)
+{
+    m_lost->setText(QStringLiteral("LOST %1").arg(lost));
+}
+
 void HeaderBar::updateTelemetry(const Telemetry &telemetry)
 {
     m_missionTime->setText(QStringLiteral("MISSION T+ ") + formatMissionTime(telemetry.missionTime, true));
     m_received->setText(QStringLiteral("RX %1").arg(telemetry.packetsReceived));
-    m_lost->setText(QStringLiteral("LOST %1").arg(telemetry.packetsLost));
+    setLost(telemetry.packetsLost);
     // S = simulated data, F = flight (real radio)
     m_mode->setText(telemetry.simulated ? QStringLiteral("S") : QStringLiteral("F"));
 }

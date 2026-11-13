@@ -48,8 +48,12 @@ int LinePlot::addSeries(const QString &name, const QColor &color, Qt::PenStyle s
 
 void LinePlot::append(int series, double time, double value)
 {
+    // A value the packet did not carry (NaN) leaves a gap, but time still
+    // moves on so the event signs keep scrolling.
     auto &points = m_series[series].points;
-    points.append(QPointF(time, value));
+    m_noData = std::isnan(value);
+    if (!m_noData)
+        points.append(QPointF(time, value));
 
     // Drop samples and events that have scrolled off the left edge
     while (!points.isEmpty() && points.first().x() < time - kWindow - 5)
@@ -89,6 +93,7 @@ void LinePlot::clear()
     m_yMin = m_defaultYMin;
     m_yMax = m_defaultYMax;
     m_latestTime = 0;
+    m_noData = false;
     update();
 }
 
@@ -130,6 +135,12 @@ void LinePlot::paintEvent(QPaintEvent *)
         p.drawPolyline(line);
     }
     p.restore();
+
+    if (m_noData) {
+        p.setFont(Theme::pixelFont(11));
+        p.setPen(Qt::white);
+        p.drawText(plot, Qt::AlignCenter, QStringLiteral("NOT IN PACKET"));
+    }
 
     // Phase changes: a dog pops out of the grass with the phase on a sign
     // above it; the grass is drawn afterwards so it hides the dog's legs.

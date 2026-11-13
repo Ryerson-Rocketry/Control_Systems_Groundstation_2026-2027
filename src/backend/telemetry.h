@@ -8,6 +8,9 @@
  *   The backend decodes the radio into a TelemetryFrame in the rocket's own
  *   units; telemetryFromFrame() below is the one place those are converted,
  *   so no widget ever deals with mg, Pa or km/h.
+ *
+ * A value the packet did not carry is NaN here too. Show it with
+ * formatReading(), and test it with hasValue() before doing maths on it.
  */
 
 #include <QString>
@@ -17,16 +20,30 @@
 
 #include "telemetryframe.h"
 
-constexpr int kStateCount = 5;
+constexpr int kStateCount = 6;
 
 // For tight spots like the signs on the plots
 inline QString stateShortName(qint32 state)
 {
     switch (state) {
-    case StateBoosterBurn:      return QStringLiteral("BOOST");
-    case StateCanardActivation: return QStringLiteral("CANARD");
-    default:                    return flightStateName(state);
+    case StateBoosterBurn:       return QStringLiteral("BOOST");
+    case StateSeparation:        return QStringLiteral("SEP");
+    case StateSustainerIgnition: return QStringLiteral("SUSTAIN");
+    case StateCanardActivation:  return QStringLiteral("CANARD");
+    default:                     return flightStateName(state);
     }
+}
+
+// A number for a readout, or "--" when the packet did not carry it
+inline QString formatReading(double value, int decimals)
+{
+    if (!hasValue(value))
+        return QStringLiteral("--");
+
+    // Rounded first so a small negative shows as 0, not "-0"
+    const double step = std::pow(10.0, decimals);
+    const double rounded = std::round(value * step) / step;
+    return QString::number(rounded == 0.0 ? 0.0 : rounded, 'f', decimals);
 }
 
 // "mm:ss", or "hh:mm:ss" when withHours is true
@@ -82,10 +99,17 @@ struct Telemetry
     quint64 packetsLost = 0;     // packets rejected as corrupt or unreadable
     bool simulated = false;
 
+    // The radio packet may not carry altitude and velocity. Without them
+    // the flight state is the only evidence: on the ground while Idle, and
+    // never known to have landed.
+    bool hasAltitude() const { return hasValue(altitude) && hasValue(velocity); }
+    bool onGround() const
+    {
+        return hasAltitude() ? altitude < 2 && std::abs(velocity) < 1 : flightState == StateIdle;
+    }
     // There's no landed state: the flight ends in Descent, so landing is
     // Descent with the rocket sitting still at ground level
-    bool onGround() const { return altitude < 2 && std::abs(velocity) < 1; }
-    bool landed() const { return flightState == StateDescent && onGround(); }
+    bool landed() const { return flightState == StateDescent && hasAltitude() && onGround(); }
 };
 
 inline Telemetry telemetryFromFrame(const TelemetryFrame &frame)

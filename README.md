@@ -27,7 +27,17 @@ cmake --build build
 
 Without `--sim` on a dev machine there's no radio, so the dashboard shows **NO LINK**.
 
-Radio settings: 433 MHz, SF9, 125 kHz bandwidth, coding rate 4/5, sync word 0x12. The rocket uses Adafruit's RFM9x library, so the 4-byte RadioHead header is stripped from each packet. Settings are in [sx127x.h](src/backend/include/sx127x.h) and [lorasource.h](src/backend/include/lorasource.h).
+Radio wiring (Adafruit RFM96 breakout to the Pi 4B header): VIN to pin 1 (3.3V), GND to pin 6, SCK to pin 23, MISO to pin 21, MOSI to pin 19, CS to pin 24 (CE0) or 26 (CE1), and **G0 to pin 15 (GPIO22)**. Packets are read the moment G0 rises. If G0 isn't connected, the link line says so and the radio is polled instead. RST (pin 22, GPIO25) is optional and off by default (`resetLine` in [lorasource.h](src/backend/include/lorasource.h)).
+
+Radio settings: 433 MHz, SF9, 125 kHz bandwidth, coding rate 4/5, sync word 0x12. The rocket's firmware puts a 4-byte RadioHead-style header on each packet, which is stripped. Settings are in [sx127x.h](src/backend/include/sx127x.h) and [lorasource.h](src/backend/include/lorasource.h).
+
+Reading the dashboard when nothing shows up:
+
+| What you see | What it means |
+|---|---|
+| **NO LINK**, status line says "Radio not found" | The Pi can't talk to its own radio: check wiring and that SPI is enabled |
+| **LIVE**, RX 0, LOST 0, no SG number | Nothing is reaching the Pi: the rocket isn't transmitting, or frequency, antenna or range |
+| **LIVE**, RX 0, LOST counting up | Packets arrive but can't be read: the rocket's packet layout doesn't match (see below) |
 
 ## Tests
 
@@ -53,9 +63,13 @@ radio / sim ──> PacketParser ──> TelemetryLogger (CSV on disk)
 
 ### Telemetry packet
 
-One CSV line per LoRa packet, 27 columns of scaled integers, in this order:
+One CSV line of scaled integers per packet. The parser accepts three layouts and tells them apart by the number of fields; any of them may start with the station's callsign (`VE3HIV,`). They are defined in [telemetryframe.cpp](src/backend/src/telemetryframe.cpp) and must match the firmware field for field.
 
-`timestamp, flight_state, accel_x/y/z, gyro_x/y/z, mag_x/y/z, roll, pitch, yaw, tilt_angle, altitude, velocity, pressure, temperature, roll_error, pitch_error, pwm_angle, gps_has_fix, gps_latitude, gps_longitude, gps_altitude, gps_speed`
+- **Radio packet** (14 fields, what the firmware's `Radio_BuildPacket()` sends once a second): `timestamp, flight_state, accel_x/y/z, gyro_x/y/z, pwm_angle, gps_has_fix, gps_latitude, gps_longitude, gps_altitude, gps_speed`
+- **Extended radio packet** (22 fields, not sent by the firmware yet): the same plus `roll, pitch, yaw, tilt_angle, altitude, velocity, pressure, temperature`, in full-row order. [docs/firmware-radio-packet.patch](docs/firmware-radio-packet.patch) is the matching change to the firmware's `Core/Src/Tasks/radio.c`
+- **Full row** (27 fields, the firmware's SD-card row; also the simulator and the wired sources): `timestamp, flight_state, accel_x/y/z, gyro_x/y/z, mag_x/y/z, roll, pitch, yaw, tilt_angle, altitude, velocity, pressure, temperature, roll_error, pitch_error, pwm_angle, gps_has_fix, gps_latitude, gps_longitude, gps_altitude, gps_speed`
+
+A value the packet doesn't carry is never shown as zero: tiles read `--`, plots say NOT IN PACKET, and the log leaves the cell empty. With the 14-field radio packet that is altitude, speed, pressure, temperature and orientation.
 
 The columns, their units and scale factors are defined once in [telemetryframe.cpp](src/backend/src/telemetryframe.cpp). Change them there and the parser, log and UDP all follow.
 
@@ -63,13 +77,14 @@ The columns, their units and scale factors are defined once in [telemetryframe.c
 
 | # | State | Dashboard |
 |---|---|---|
-| 0 | Idle | Kirby walks on the pad |
-| 1 | Booster Burn | Kirby puffs up and flies |
-| 2 | Canard Activation | Canard roll/pitch error and PWM are live |
-| 3 | Apogee | "APOGEE!" |
-| 4 | Descent | Kirby opens his parasol; TOUCHDOWN once at ground level and still |
+| 0 | Idle (`STATE_PAD`) | Kirby walks on the pad |
+| 1 | Booster Burn (`STATE_BOOSTER_BURNOUT`) | Kirby puffs up and flies |
+| 2 | Separation (`STATE_SEPARATION`) | |
+| 3 | Sustainer Ignition (`STATE_SUSTAINER_IGNITION`) | |
+| 4 | Canard Activation (`STATE_CANARDS_ACTIVATE`) | Canard PWM angle is live |
+| 5 | Descent (`STATE_DESCENT`) | Kirby opens his parasol; TOUCHDOWN once at ground level and still |
 
-These numbers must match the firmware's `FlightState_t`.
+These numbers match `FlightState_t` in the firmware's `Core/Inc/Defs/states.h` and must change with it.
 
 ## The dashboard
 
@@ -109,7 +124,7 @@ Build in `build/`, which is git-ignored. Don't build in the repo root.
 
 ## Still to do
 
-- [ ] Confirm the flight state numbers against the firmware
+- [x] Confirm the flight state numbers against the firmware (matched to the `radio-protsenko` branch)
 - [ ] Test on the Pi with the real radio
 - [ ] Wire the physical buttons to USB log export and the tracker's map views (`GpsMap::setView`)
 - [ ] Autostart in fullscreen on boot (rules 1–2)

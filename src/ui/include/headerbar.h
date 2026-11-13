@@ -22,6 +22,9 @@ public:
     explicit HeaderBar(QWidget *parent = nullptr);
 
     void updateTelemetry(const Telemetry &telemetry);
+    // Packets that arrived but could not be read. Shown at once: when every
+    // packet is unreadable there is never a good one to update the header.
+    void setLost(quint64 lost);
     // One line under the mission clock: link state, or what went wrong
     void setStatus(const QString &text);
 

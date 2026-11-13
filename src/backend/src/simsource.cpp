@@ -7,11 +7,12 @@
 #include "packetparser.h"
 
 namespace {
-// Flight timeline, in seconds from power-up. Times are made up; the order
-// follows the firmware's FlightState_t.
+// Flight timeline of the two-stage rocket, in seconds from power-up. Times
+// are made up; the order follows the firmware's FlightState_t.
 constexpr double kPadS = 5.0;
-constexpr double kBurnS = 3.0;
-constexpr double kApogeeHoldS = 2.0;
+constexpr double kBoosterBurnS = 3.0;
+constexpr double kSeparationS = 1.0;
+constexpr double kSustainerBurnS = 3.0;
 constexpr double kApogeeM = 700.0;
 constexpr double kAscentS = 20.0;
 constexpr double kDescentMps = 8.0;
@@ -24,20 +25,27 @@ constexpr double kPadAltitudeAslM = 300.0;
 
 qint32 flightStateAt(double seconds)
 {
-    if (seconds < kPadS)
+    double end = kPadS;
+    if (seconds < end)
         return StateIdle;
-    if (seconds < kPadS + kBurnS)
+    end += kBoosterBurnS;
+    if (seconds < end)
         return StateBoosterBurn;
+    end += kSeparationS;
+    if (seconds < end)
+        return StateSeparation;
+    end += kSustainerBurnS;
+    if (seconds < end)
+        return StateSustainerIgnition;
     if (seconds < kPadS + kAscentS)
         return StateCanardActivation;
-    if (seconds < kPadS + kAscentS + kApogeeHoldS)
-        return StateApogee;
     return StateDescent;
 }
 
 bool motorBurning(double seconds)
 {
-    return seconds >= kPadS && seconds < kPadS + kBurnS;
+    const qint32 state = flightStateAt(seconds);
+    return state == StateBoosterBurn || state == StateSustainerIgnition;
 }
 
 double altitudeAt(double seconds)

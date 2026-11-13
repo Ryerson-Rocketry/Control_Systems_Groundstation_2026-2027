@@ -9,11 +9,12 @@ namespace {
 QString ghostFor(FlightState state)
 {
     switch (state) {
-    case StateIdle:             return Sprites::GhostRed;
-    case StateBoosterBurn:      return Sprites::GhostPink;
-    case StateCanardActivation: return Sprites::GhostCyan;
-    case StateApogee:           return Sprites::GhostOrange;
-    case StateDescent:          return Sprites::GhostBlue;
+    case StateIdle:              return Sprites::GhostRed;
+    case StateBoosterBurn:       return Sprites::GhostPink;
+    case StateSeparation:        return Sprites::GhostCyan;
+    case StateSustainerIgnition: return Sprites::GhostOrange;
+    case StateCanardActivation:  return Sprites::GhostPurple;
+    case StateDescent:           return Sprites::GhostBlue;
     }
     return {};
 }

@@ -48,14 +48,14 @@ QLabel *LiveDataPanel::addTile(int row, int column, const QString &name)
 
 void LiveDataPanel::updateTelemetry(const Telemetry &telemetry)
 {
-    m_altitude->setText(QString::number(telemetry.altitude, 'f', 1));
-    m_temperature->setText(QString::number(telemetry.temperature, 'f', 1));
-    m_pressure->setText(QString::number(telemetry.pressure, 'f', 1));
-    m_speed->setText(QString::number(telemetry.velocity, 'f', 1));
+    m_altitude->setText(formatReading(telemetry.altitude, 1));
+    m_temperature->setText(formatReading(telemetry.temperature, 1));
+    m_pressure->setText(formatReading(telemetry.pressure, 1));
+    m_speed->setText(formatReading(telemetry.velocity, 1));
     m_orientation->setText(QStringLiteral("%1 %2 %3")
-                               .arg(qRound(telemetry.roll))
-                               .arg(qRound(telemetry.pitch))
-                               .arg(qRound(telemetry.yaw)));
-    m_tilt->setText(QString::number(telemetry.tiltAngle, 'f', 1));
+                               .arg(formatReading(telemetry.roll, 0),
+                                    formatReading(telemetry.pitch, 0),
+                                    formatReading(telemetry.yaw, 0)));
+    m_tilt->setText(formatReading(telemetry.tiltAngle, 1));
     setHeaderInfo(QStringLiteral("#%1").arg(telemetry.packetsReceived));
 }

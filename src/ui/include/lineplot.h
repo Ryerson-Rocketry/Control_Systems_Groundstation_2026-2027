@@ -9,6 +9,7 @@
  *   a bird flying at the head of each line while the rocket is in the
  *   air, and a dog popping up with a sign wherever the phase changed.
  *   Shows the last 3 minutes; the y range grows if a value goes past it.
+ *   A NaN value (not in the packet) leaves a gap and a note on the plot.
  *
  *   Usage: addSeries() once per line, then append() each new sample.
  *   Call addEvent() on a phase change and setFlying() as it lifts off
@@ -63,6 +64,7 @@ private:
     QVector<Series> m_series;
     QVector<Event> m_events;
     bool m_flying = false;
+    bool m_noData = false;  // the latest packet did not carry this plot's value
 };
 
 #endif // LINEPLOT_H

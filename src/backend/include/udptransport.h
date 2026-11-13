@@ -12,7 +12,8 @@
  *   Carries telemetry from the backend to the frontend as one JSON
  *   datagram per frame:
  *     {"received_utc":"...","values":{"timestamp":1234,"altitude":152.3,...}}
- * Values are in real units (already divided by their scale factor).
+ * Values are in real units (already divided by their scale factor); a
+ * column the packet did not carry is null.
  *
  * Both ends use the loopback address only, and the receiver sends
  * nothing back. Rule 14 bans network control in the shipped build, so
