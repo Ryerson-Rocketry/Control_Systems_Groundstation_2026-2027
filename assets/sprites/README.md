@@ -9,7 +9,7 @@ so use a transparent background.
 |---------------|----------------------------------------|---------------|
 | `background.png` | Behind the whole dashboard (Peach's castle), scaled to cover the window; without it a pixel sunset is drawn | any |
 | `logo.png`    | Header, top left                       | 36 × 36       |
-| `runner.png`  | Pac-Man, just left of the current state's ghost on the phase track | 28 × 28 |
+| `runner_0…3.png` | Pac-Man chomping, just left of the current state's ghost on the phase track (10 fps) | 30 × 30 |
 | `avatar.png`  | Photo of the rocket, tall column on the left of the Game & Watch LCD | 28 × 140 |
 | `marker.png`  | Inside the red rocket disc on the GPS tracker | 16 × 16 |
 | `tracker_head.png` | Mascot head on top of the GPS tracker's orange plaque | 26 × 26 |

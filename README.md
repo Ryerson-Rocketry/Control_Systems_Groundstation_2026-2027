@@ -66,7 +66,7 @@ radio / sim ──> PacketParser ──> TelemetryLogger (CSV on disk)
 One CSV line of scaled integers per packet. The parser accepts three layouts and tells them apart by the number of fields; any of them may start with the station's callsign (`VE3HIV,`). They are defined in [telemetryframe.cpp](src/backend/src/telemetryframe.cpp) and must match the firmware field for field.
 
 - **Radio packet** (14 fields, what the firmware's `Radio_BuildPacket()` sends once a second): `timestamp, flight_state, accel_x/y/z, gyro_x/y/z, pwm_angle, gps_has_fix, gps_latitude, gps_longitude, gps_altitude, gps_speed`
-- **Extended radio packet** (22 fields, not sent by the firmware yet): the same plus `roll, pitch, yaw, tilt_angle, altitude, velocity, pressure, temperature`, in full-row order. [docs/firmware-radio-packet.patch](docs/firmware-radio-packet.patch) is the matching change to the firmware's `Core/Src/Tasks/radio.c`
+- **Extended radio packet** (22 fields, not sent by the firmware yet): the same plus `roll, pitch, yaw, tilt_angle, altitude, velocity, pressure, temperature`, in full-row order
 - **Full row** (27 fields, the firmware's SD-card row; also the simulator and the wired sources): `timestamp, flight_state, accel_x/y/z, gyro_x/y/z, mag_x/y/z, roll, pitch, yaw, tilt_angle, altitude, velocity, pressure, temperature, roll_error, pitch_error, pwm_angle, gps_has_fix, gps_latitude, gps_longitude, gps_altitude, gps_speed`
 
 A value the packet doesn't carry is never shown as zero: tiles read `--`, plots say NOT IN PACKET, and the log leaves the cell empty. With the 14-field radio packet that is altitude, speed, pressure, temperature and orientation.

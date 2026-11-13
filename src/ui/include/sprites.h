@@ -21,7 +21,7 @@ class QPainter;
 namespace Sprites {
 
 inline const QString Logo   = QStringLiteral("logo");    // header, top-left
-inline const QString Runner = QStringLiteral("runner");  // Pac-Man on the phase track
+inline const QString Runner = QStringLiteral("runner");  // Pac-Man chomping on the phase track (runner_0.png, ...)
 inline const QString Rocket = QStringLiteral("rocket");  // flies in the altitude scene
 inline const QString Avatar = QStringLiteral("avatar");  // photo of the rocket on the status LCD
 inline const QString Marker = QStringLiteral("marker");  // inside the red rocket disc on the GPS tracker

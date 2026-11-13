@@ -3,8 +3,12 @@
 #include "theme.h"
 
 #include <QPainter>
+#include <QTimer>
 
 namespace {
+
+constexpr int kRunnerFps = 10;   // the chomp GIF's 100 ms per frame
+constexpr int kRunnerSize = 30;  // 2x the 15 px art, so the pixels stay even
 
 QString ghostFor(FlightState state)
 {
@@ -24,6 +28,13 @@ QString ghostFor(FlightState state)
 PhaseTrack::PhaseTrack(QWidget *parent) : QWidget(parent)
 {
     setFixedHeight(54);
+
+    // Pac-Man chomps all the time, not just when a packet arrives
+    m_clock.start();
+    auto *animation = new QTimer(this);
+    animation->setInterval(1000 / kRunnerFps);
+    connect(animation, &QTimer::timeout, this, qOverload<>(&PhaseTrack::update));
+    animation->start();
 }
 
 void PhaseTrack::setState(qint32 state, bool finished)
@@ -81,10 +92,13 @@ void PhaseTrack::paintEvent(QPaintEvent *)
             p.setOpacity(0.4);
         Sprites::draw(p, spot, i < current ? Sprites::GhostDead : ghostFor(static_cast<FlightState>(i)));
         p.restore();
+        QRect runner(0, 0, kRunnerSize, kRunnerSize);
+        runner.moveCenter(spot.center());
+        const QString chomp = Sprites::frameAt(Sprites::Runner, m_clock.elapsed(), kRunnerFps);
         if (i == current)
-            Sprites::draw(p, spot.translated(-spriteSize - 2, 0), Sprites::Runner);
+            Sprites::draw(p, runner.translated(-spriteSize - 2, 0), chomp);
         else if (m_finished && i == kStateCount - 1)
-            Sprites::draw(p, spot.translated(spriteSize + 2, 0), Sprites::Runner);
+            Sprites::draw(p, runner.translated(spriteSize + 2, 0), chomp);
 
         p.setPen(QPen(Theme::Ink, 3));
         p.setBrush(fill);

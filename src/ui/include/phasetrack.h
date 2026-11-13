@@ -13,6 +13,7 @@
 
 #include "telemetry.h"
 
+#include <QElapsedTimer>
 #include <QWidget>
 
 class PhaseTrack : public QWidget
@@ -31,6 +32,7 @@ protected:
 private:
     qint32 m_state = StateIdle;
     bool m_finished = false;
+    QElapsedTimer m_clock;  // drives Pac-Man's chomp
 };
 
 #endif // PHASETRACK_H
